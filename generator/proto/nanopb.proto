@@ -16,6 +16,7 @@ enum FieldType {
     FT_POINTER = 4; // Always generate a dynamically allocated field.
     FT_STATIC = 2; // Generate a static field or raise an exception if not possible.
     FT_IGNORE = 3; // Ignore the field completely.
+    FT_INLINE = 5; // Legacy option, use the separate 'fixed_length' option instead
 }
 
 enum IntSize {
@@ -26,12 +27,23 @@ enum IntSize {
     IS_64 = 64;
 }
 
+enum TypenameMangling {
+    M_NONE = 0; // Default, no typename mangling
+    M_STRIP_PACKAGE = 1; // Strip current package name
+    M_FLATTEN = 2; // Only use last path component
+}
+
 // This is the inner options message, which basically defines options for
 // a field. When it is used in message or file scope, it applies to all
 // fields.
 message NanoPBOptions {
   // Allocated size for 'bytes' and 'string' fields.
+  // For string fields, this should include the space for null terminator.
   optional int32 max_size = 1;
+  
+  // Maximum length for 'string' fields. Setting this is equivalent
+  // to setting max_size to a value of length+1.
+  optional int32 max_length = 14;
   
   // Allocated number of entries in arrays ('repeated' fields)
   optional int32 max_count = 2;
@@ -65,6 +77,21 @@ message NanoPBOptions {
 
   // decode oneof as anonymous union
   optional bool anonymous_oneof = 11 [default = false];
+
+  // Proto3 singular field does not generate a "has_" flag
+  optional bool proto3 = 12 [default = false];
+
+  // Generate an enum->string mapping function (can take up lots of space).
+  optional bool enum_to_string = 13 [default = false];
+
+  // Generate bytes arrays with fixed length
+  optional bool fixed_length = 15 [default = false];
+
+  // Generate repeated field with fixed count
+  optional bool fixed_count = 16 [default = false];
+
+  // Mangle long names
+  optional TypenameMangling mangle_names = 17 [default = M_NONE];
 }
 
 // Extensions to protoc 'Descriptor' type in order to define options

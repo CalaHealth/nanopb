@@ -1,3 +1,119 @@
+nanopb-0.3.9.9 (2022-04-23)
+ Fix Xcode analyzer warnings (#667, #674)
+ Fix clang sanitizer warnings
+
+Note: there are no known functional differences between 0.3.9.8 and 0.3.9.9.
+The changes are merely to fix warnings introduced by new compiler versions.
+
+nanopb-0.3.9.8 (2021-03-22)
+ Fix invalid free() with oneof (#647, GHSA-7mv5-5mxh-qg88)
+ Don't generate lines with trailing spaces (#622)
+ Verify stream size before allocating string / bytes (#620)
+
+nanopb-0.3.9.7 (2020-11-25)
+ Fix memory leak with oneofs and PB_ENABLE_MALLOC (#615, GHSA-85rr-4rh9-hhwh)
+ Fix unsigned enums not working correctly inside OneOf (#611)
+ Add '--version' option to nanopb_generator.py (#607)
+ SwiftPM rule updates (#567, #585)
+
+nanopb-0.3.9.6 (2020-06-23)
+ Fix buffer overflow when encoding bytes with size set to 65535 (#547, GHSA-3p39-mfxg-hrq4)
+ Fix proto3 submessage improperly considered empty (#504)
+ Fix ImportError when using generator/protoc with Python 3
+ Add build rules for Swift package manager (#549)
+
+nanopb-0.3.9.5 (2020-02-02)
+ Fix invalid free() after failed realloc() (GHSA-gcx3-7m76-287p)
+ Add workaround for avr-libc realloc() bug (#475)
+ Fix empty submessages getting encoded in proto3 mode (#395)
+ Avoid overflows in allocation for packed fields.
+
+nanopb-0.3.9.4 (2019-10-13)
+ Fix undefined behavior with bool fields (#434)
+ Fix enum min/max defines when values are not in order (#405)
+ Fix network_server socket example with zero-length strings (#421)
+ Don't call stream read callback with count=0 (#421)
+ Add compile time flag PB_ENCODE_ARRAYS_UNPACKED (#427)
+
+nanopb-0.3.9.3 (2019-03-08)
+ Fix fixed size and callback repeated fields inside proto3 submessages (#376, #382, #386)
+ Fix incorrect PB_STATIC_ASSERT for bytes inside oneof (#363)
+ Fix generator error with mangle_names option (#380)
+ Generator: Allow comma separated options in plugin mode (#343)
+
+nanopb-0.3.9.2 (2018-11-10)
+ Erroneous free() when using callbacks combined with PB_ENABLE_MALLOC (#346)
+ Fix possible null-pointer dereference in decode_callback_field (#342)
+ Fix FindNanopb.cmake on Windows (#335)
+ Fix large generator memory usage with oneof fields (#338)
+ Fix error in splint test (#359)
+ Allow cmake to build as a shared library (#352, #353)
+ Add --no-strip-path command line option (#326)
+ Option for flattening nested protobuf names (#333)
+ Documentation fixes (#329, #350, #358)
+ Better error messages (#351)
+
+nanopb-0.3.9.1 (2018-04-14)
+ Fix handling of special characters in string/bytes default values (issue #322)
+ Fix encoding of negative numbers with PB_WITHOUT_64BIT (#285)
+ Fix _zero initializer for enums that don't begin at 0. (#295)
+ Multiple CMake fixes (#296, #299, #304, #312, #320)
+ Fix compiler warnings (#305)
+ Fix scons rules for Python 3
+ Add check for large extension field number (issue #306)
+ Updated included descriptor.proto version (#314)
+ Resolve oneof sizes symbolically when needed (#311)
+ Add fixed_count option (#260)
+ Add some verbose prints in generator (issue #238)
+ Add test/example of using 'map' type. (#289)
+
+nanopb-0.3.9 (2017-09-23)
+ Fix bugs in proto3 encoding of submessages (#256)
+ Fix message size calculation for arrays of size 1 (#253)
+ Fix segfault with FT_CALLBACK inside FT_POINTER (#259)
+ Properly detect truncated tags in corrupted messages (#277)
+ Make pb_decode_varint32 overflow checks exact (#258)
+ Add option to build without 64-bit support (#86)
+ Add options to define source and header file extensions (#264)
+ Add pb_en/decode_nullterminated() (part of #278)
+ Add pb_decode_delimited_noinit (#284)
+ CMake: add dependency for .options file (#265)
+ CMake: change use of relative paths (#250,#271,#273)
+ Better error message for missing max_size option (#281)
+ Travis-CI build fixes (#283)
+ Add Bazel build system file (#266)
+
+nanopb-0.3.8 (2017-03-05)
+ Fix problems with multiple oneofs in same message (#229)
+ Zero-valued extension fields were mistakenly ignored by encoder (#242)
+ Multiple fixes related to proto3 mode (#242, #245, #247, #249)
+ Fix potential unaligned access (#226, #227)
+ Fix documentation for protoc --plugin argument (#239)
+ Extend inline / fixed length bytes array support (#244)
+ Add new option max_length for strings (#107)
+ Make string substream API more robust (#230)
+ Make pb_decode_varint32 public API (#231)
+ Allow overriding proto3 mode (#228)
+ Add optional enum->string mapping function (#223)
+ Add transitional options.proto file (#241)
+ Add better error message on Python library version imcompatibility (#240)
+ Include version number in PlatformIO library.json (#222)
+ CMake build script changes (#236, #237)
+ Change download links to https
+ Improvements to test cases.
+
+nanopb-0.3.7 (2016-10-30)
+ Add support for proto3-style singular fields (#182, #206, #216)
+ Updated binary package protoc to version 3.1.0
+ Add FT_INLINE allocation of bytes fields (#211)
+ Include package name in include guard (#207)
+ Fix missing warning with large bytes fields (issue #220)
+ Added CMake project (#208)
+ Add bazel BUILD file for nanopb (#209)
+ Added an AUTHORS file (#211)
+ Documentation updates
+ Improvements to test cases.
+
 nanopb-0.3.6 (2016-06-19)
  Protect against corrupted _count fields in pb_release (#205)
  Fix error in STATIC_ASSERT with multiple files (#203)

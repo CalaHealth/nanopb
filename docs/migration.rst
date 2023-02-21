@@ -11,6 +11,83 @@ are included, in order to make it easier to find this document.
 
 .. contents ::
 
+Nanopb-0.3.9.4, 0.4.0 (2019-xx-xx)
+==================================
+
+Fix generation of min/max defines for enum types
+------------------------------------------------
+
+**Rationale:** Nanopb generator makes #defines for enum minimum and maximum
+value. Previously these defines incorrectly had the first and last enum value,
+instead of the actual minimum and maximum. (issue #405)
+
+**Changes:** Minimum define now always has the smallest value, and maximum
+define always has the largest value.
+
+**Required actions:** If these defines are used and enum values in .proto file
+are not defined in ascending order, user code behaviour may change. Check that
+user code doesn't expect the old, incorrect first/last behaviour.
+
+Fix undefined behavior related to bool fields
+---------------------------------------------
+
+**Rationale:** In C99, `bool` variables are not allowed to have other values
+than `true` and `false`. Compilers use this fact in optimization, and constructs
+like `int foo = msg.has_field ? 100 : 0` will give unexpected results otherwise.
+Previously nanopb didn't enforce that decoded bool fields had valid values.
+
+**Changes:** Bool fields are now handled separately as `PB_LTYPE_BOOL`. The
+`LTYPE` descriptor numbers for other field types were renumbered.
+
+**Required actions:** Source code files must be recompiled, but regenerating
+`.pb.h`/`.pb.c` files from `.proto` is not required. If user code directly uses
+the nanopb internal field representation (search for `PB_LTYPE_VARINT` in source),
+it may need updating.
+
+Nanopb-0.3.9.1, 0.4.0 (2018-04-14)
+==================================
+
+Fix handling of string and bytes default values
+-----------------------------------------------
+
+**Rationale:** Previously nanopb didn't properly decode special character
+escapes like \\200 emitted by protoc. This caused these escapes to end up
+verbatim in the default values in .pb.c file.
+
+**Changes:** Escapes are now decoded, and e.g. "\\200" or "\\x80" results in
+{0x80} for bytes field and "\\x80" for string field.
+
+**Required actions:** If code has previously relied on '\\' in default value
+being passed through verbatim, it must now be changed to '\\\\'.
+
+Nanopb-0.3.8 (2017-03-05)
+=========================
+
+Fully drain substreams before closing
+-------------------------------------
+
+**Rationale:** If the substream functions were called directly and the caller
+did not completely empty the substring before closing it, the parent stream
+would be put into an incorrect state.
+
+**Changes:** *pb_close_string_substream* can now error and returns a boolean.
+
+**Required actions:** Add error checking onto any call to
+*pb_close_string_substream*.
+
+Change oneof format in .pb.c files
+----------------------------------
+
+**Rationale:** Previously two oneofs in a single message would be erroneously
+handled as part of the same union.
+
+**Changes:** Oneofs fields now use special *PB_DATAOFFSET_UNION* offset type
+in generated .pb.c files to distinguish whether they are the first or following
+field inside an union.
+
+**Required actions:** Regenerate *.pb.c/.pb.h* files with new nanopb version if
+oneofs are used.
+
 Nanopb-0.3.5 (2016-02-13)
 =========================
 

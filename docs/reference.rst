@@ -53,6 +53,12 @@ PB_SYSTEM_HEADER               Replace the standard header files with a single
                                functions and typedefs listed on the
                                `overview page`_. Value must include quotes,
                                for example *#define PB_SYSTEM_HEADER "foo.h"*.
+PB_WITHOUT_64BIT               Disable 64-bit support, for old compilers or
+                               for a slight speedup on 8-bit platforms.
+PB_ENCODE_ARRAYS_UNPACKED      Don't encode scalar arrays as packed.
+                               This is only to be used when the decoder on the
+                               receiving side cannot process packed scalar
+                               arrays. Such example is older protobuf.js.
 ============================  ================================================
 
 The PB_MAX_REQUIRED_FIELDS, PB_FIELD_16BIT and PB_FIELD_32BIT settings allow
@@ -77,9 +83,10 @@ int_size                       Override the integer type of a field.
 type                           Type of the generated field. Default value
                                is *FT_DEFAULT*, which selects automatically.
                                You can use *FT_CALLBACK*, *FT_POINTER*,
-                               *FT_STATIC* or *FT_IGNORE* to force a callback
-                               field, a dynamically allocated field, a static
-                               field or to completely ignore the field.
+                               *FT_STATIC* or *FT_IGNORE* to
+                               force a callback field, a dynamically
+                               allocated field, a static field or to
+                               completely ignore the field.
 long_names                     Prefix the enum name to the enum value in
                                definitions, i.e. *EnumName_EnumValue*. Enabled
                                by default.
@@ -92,6 +99,10 @@ no_unions                      Generate 'oneof' fields as optional fields
 msgid                          Specifies a unique id for this message type.
                                Can be used by user code as an identifier.
 anonymous_oneof                Generate 'oneof' fields as anonymous unions.
+fixed_length                   Generate 'bytes' fields with constant length
+                               (max_size must also be defined).
+fixed_count                    Generate arrays with constant length
+                               (max_count must also be defined).
 ============================  ================================================
 
 These options can be defined for the .proto files before they are converted
@@ -150,8 +161,20 @@ options from it. The file format is as follows:
   it makes sense to define wildcard options first in the file and more specific
   ones later.
   
-If preferred, the name of the options file can be set using the command line
-switch *-f* to nanopb_generator.py.
+To debug problems in applying the options, you can use the *-v* option for the
+plugin. Plugin options are specified in front of the output path:
+
+    protoc ... --nanopb_out=-v:. message.proto
+
+Protoc doesn't currently pass include path into plugins. Therefore if your
+*.proto* is in a subdirectory, nanopb may have trouble finding the associated
+*.options* file. A workaround is to specify include path separately to the
+nanopb plugin, like:
+
+    protoc -Isubdir --nanopb_out=-Isubdir:. message.proto
+  
+If preferred, the name of the options file can be set using plugin argument
+*-f*.
 
 Defining the options on command line
 ------------------------------------
@@ -177,7 +200,7 @@ nanopb.proto can be found. This file, in turn, requires the file
 */usr/include*. Therefore, to compile a .proto file which uses options, use a
 protoc command similar to::
 
-    protoc -I/usr/include -Inanopb/generator -I. -omessage.pb message.proto
+    protoc -I/usr/include -Inanopb/generator -I. --nanopb_out=. message.proto
 
 The options can be defined in file, message and field scopes::
 
@@ -187,13 +210,6 @@ The options can be defined in file, message and field scopes::
         option (nanopb_msgopt).max_size = 30; // Message scope
         required string fieldsize = 1 [(nanopb).max_size = 40]; // Field scope
     }
-
-
-
-
-
-
-
 
 
 pb.h
@@ -216,17 +232,20 @@ Type used to store the type of each field, to control the encoder/decoder behavi
 
 The low-order nibble of the enumeration values defines the function that can be used for encoding and decoding the field data:
 
-==================== ===== ================================================
-LTYPE identifier     Value Storage format
-==================== ===== ================================================
-PB_LTYPE_VARINT      0x00  Integer.
-PB_LTYPE_SVARINT     0x01  Integer, zigzag encoded.
-PB_LTYPE_FIXED32     0x02  32-bit integer or floating point.
-PB_LTYPE_FIXED64     0x03  64-bit integer or floating point.
-PB_LTYPE_BYTES       0x04  Structure with *size_t* field and byte array.
-PB_LTYPE_STRING      0x05  Null-terminated string.
-PB_LTYPE_SUBMESSAGE  0x06  Submessage structure.
-==================== ===== ================================================
+=========================== ===== ================================================
+LTYPE identifier            Value Storage format
+=========================== ===== ================================================
+PB_LTYPE_VARINT             0x00  Integer.
+PB_LTYPE_UVARINT            0x01  Unsigned integer.
+PB_LTYPE_SVARINT            0x02  Integer, zigzag encoded.
+PB_LTYPE_FIXED32            0x03  32-bit integer or floating point.
+PB_LTYPE_FIXED64            0x04  64-bit integer or floating point.
+PB_LTYPE_BYTES              0x05  Structure with *size_t* field and byte array.
+PB_LTYPE_STRING             0x06  Null-terminated string.
+PB_LTYPE_SUBMESSAGE         0x07  Submessage structure.
+PB_LTYPE_EXTENSION          0x08  Point to *pb_extension_t*.
+PB_LTYPE_FIXED_LENGTH_BYTES 0x09  Inline *pb_byte_t* array of fixed size.
+=========================== ===== ================================================
 
 The bits 4-5 define whether the field is required, optional or repeated:
 
@@ -489,14 +508,14 @@ This function only considers the LTYPE of the field. You can use it from your fi
 
 Wire type mapping is as follows:
 
-========================= ============
-LTYPEs                    Wire type
-========================= ============
-VARINT, SVARINT           PB_WT_VARINT
-FIXED64                   PB_WT_64BIT  
-STRING, BYTES, SUBMESSAGE PB_WT_STRING 
-FIXED32                   PB_WT_32BIT
-========================= ============
+============================================= ============
+LTYPEs                                        Wire type
+============================================= ============
+VARINT, UVARINT, SVARINT                      PB_WT_VARINT
+FIXED64                                       PB_WT_64BIT
+STRING, BYTES, SUBMESSAGE, FIXED_LENGTH_BYTES PB_WT_STRING
+FIXED32                                       PB_WT_32BIT
+============================================= ============
 
 pb_encode_varint
 ----------------

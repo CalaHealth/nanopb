@@ -38,6 +38,11 @@
 /* #define PB_OLD_CALLBACK_STYLE */
 
 
+/* Don't encode scalar arrays as packed. This is only to be used when
+ * the decoder on the receiving side cannot process packed scalar arrays.
+ * Such example is older protobuf.js. */
+/* #define PB_ENCODE_ARRAYS_UNPACKED 1 */
+
 /******************************************************************
  * You usually don't need to change anything below this line.     *
  * Feel free to look around and use the defined macros, though.   *
@@ -46,7 +51,7 @@
 
 /* Version of the nanopb library. Just in case you want to check it in
  * your own program. */
-#define NANOPB_VERSION nanopb-0.3.6
+#define NANOPB_VERSION nanopb-0.3.9.9
 
 /* Include all the system headers needed by nanopb. You will need the
  * definitions of the following:
@@ -145,33 +150,40 @@ typedef uint_least8_t pb_type_t;
 /**** Field data types ****/
 
 /* Numeric types */
-#define PB_LTYPE_VARINT  0x00 /* int32, int64, enum, bool */
-#define PB_LTYPE_UVARINT 0x01 /* uint32, uint64 */
-#define PB_LTYPE_SVARINT 0x02 /* sint32, sint64 */
-#define PB_LTYPE_FIXED32 0x03 /* fixed32, sfixed32, float */
-#define PB_LTYPE_FIXED64 0x04 /* fixed64, sfixed64, double */
+#define PB_LTYPE_BOOL    0x00 /* bool */
+#define PB_LTYPE_VARINT  0x01 /* int32, int64, enum, bool */
+#define PB_LTYPE_UVARINT 0x02 /* uint32, uint64 */
+#define PB_LTYPE_SVARINT 0x03 /* sint32, sint64 */
+#define PB_LTYPE_FIXED32 0x04 /* fixed32, sfixed32, float */
+#define PB_LTYPE_FIXED64 0x05 /* fixed64, sfixed64, double */
 
 /* Marker for last packable field type. */
-#define PB_LTYPE_LAST_PACKABLE 0x04
+#define PB_LTYPE_LAST_PACKABLE 0x05
 
 /* Byte array with pre-allocated buffer.
  * data_size is the length of the allocated PB_BYTES_ARRAY structure. */
-#define PB_LTYPE_BYTES 0x05
+#define PB_LTYPE_BYTES 0x06
 
 /* String with pre-allocated buffer.
  * data_size is the maximum length. */
-#define PB_LTYPE_STRING 0x06
+#define PB_LTYPE_STRING 0x07
 
 /* Submessage
  * submsg_fields is pointer to field descriptions */
-#define PB_LTYPE_SUBMESSAGE 0x07
+#define PB_LTYPE_SUBMESSAGE 0x08
 
 /* Extension pseudo-field
  * The field contains a pointer to pb_extension_t */
-#define PB_LTYPE_EXTENSION 0x08
+#define PB_LTYPE_EXTENSION 0x09
+
+/* Byte array with inline, pre-allocated byffer.
+ * data_size is the length of the inline, allocated buffer.
+ * This differs from PB_LTYPE_BYTES by defining the element as
+ * pb_byte_t[data_size] rather than pb_bytes_array_t. */
+#define PB_LTYPE_FIXED_LENGTH_BYTES 0x0A
 
 /* Number of declared LTYPES */
-#define PB_LTYPES_COUNT 9
+#define PB_LTYPES_COUNT 0x0B
 #define PB_LTYPE_MASK 0x0F
 
 /**** Field repetition rules ****/
@@ -245,8 +257,10 @@ PB_PACKED_STRUCT_END
  * If you get errors here, it probably means that your stdint.h is not
  * correct for your platform.
  */
+#ifndef PB_WITHOUT_64BIT
 PB_STATIC_ASSERT(sizeof(int64_t) == 2 * sizeof(int32_t), INT64_T_WRONG_SIZE)
 PB_STATIC_ASSERT(sizeof(uint64_t) == 2 * sizeof(uint32_t), UINT64_T_WRONG_SIZE)
+#endif
 
 /* This structure is used for 'bytes' arrays.
  * It has the number of bytes in the beginning, and after that an array.
@@ -387,6 +401,8 @@ struct pb_extension_s {
 #define PB_DATAOFFSET_FIRST(st, m1, m2) (offsetof(st, m1))
 /* data_offset for subsequent fields */
 #define PB_DATAOFFSET_OTHER(st, m1, m2) (offsetof(st, m1) - offsetof(st, m2) - pb_membersize(st, m2))
+/* data offset for subsequent fields inside an union (oneof) */
+#define PB_DATAOFFSET_UNION(st, m1, m2) (PB_SIZE_MAX)
 /* Choose first/other based on m1 == m2 (deprecated, remains for backwards compatibility) */
 #define PB_DATAOFFSET_CHOOSE(st, m1, m2) (int)(offsetof(st, m1) == offsetof(st, m2) \
                                   ? PB_DATAOFFSET_FIRST(st, m1, m2) \
@@ -407,6 +423,10 @@ struct pb_extension_s {
     pb_delta(st, has_ ## m, m), \
     pb_membersize(st, m), 0, ptr}
 
+#define PB_SINGULAR_STATIC(tag, st, m, fd, ltype, ptr) \
+    {tag, PB_ATYPE_STATIC | PB_HTYPE_OPTIONAL | ltype, \
+    fd, 0, pb_membersize(st, m), 0, ptr}
+
 /* Repeated fields have a _count field and also the maximum number of entries. */
 #define PB_REPEATED_STATIC(tag, st, m, fd, ltype, ptr) \
     {tag, PB_ATYPE_STATIC | PB_HTYPE_REPEATED | ltype, \
@@ -425,6 +445,11 @@ struct pb_extension_s {
     {tag, PB_ATYPE_POINTER | PB_HTYPE_OPTIONAL | ltype, \
     fd, 0, pb_membersize(st, m[0]), 0, ptr}
 
+/* Same as optional fields*/
+#define PB_SINGULAR_POINTER(tag, st, m, fd, ltype, ptr) \
+    {tag, PB_ATYPE_POINTER | PB_HTYPE_OPTIONAL | ltype, \
+    fd, 0, pb_membersize(st, m[0]), 0, ptr}
+
 /* Repeated fields have a _count field and a pointer to array of pointers */
 #define PB_REPEATED_POINTER(tag, st, m, fd, ltype, ptr) \
     {tag, PB_ATYPE_POINTER | PB_HTYPE_REPEATED | ltype, \
@@ -439,14 +464,23 @@ struct pb_extension_s {
 #define PB_OPTIONAL_CALLBACK(tag, st, m, fd, ltype, ptr) \
     {tag, PB_ATYPE_CALLBACK | PB_HTYPE_OPTIONAL | ltype, \
     fd, 0, pb_membersize(st, m), 0, ptr}
+
+#define PB_SINGULAR_CALLBACK(tag, st, m, fd, ltype, ptr) \
+    {tag, PB_ATYPE_CALLBACK | PB_HTYPE_OPTIONAL | ltype, \
+    fd, 0, pb_membersize(st, m), 0, ptr}
     
 #define PB_REPEATED_CALLBACK(tag, st, m, fd, ltype, ptr) \
     {tag, PB_ATYPE_CALLBACK | PB_HTYPE_REPEATED | ltype, \
     fd, 0, pb_membersize(st, m), 0, ptr}
 
-/* Optional extensions don't have the has_ field, as that would be redundant. */
+/* Optional extensions don't have the has_ field, as that would be redundant.
+ * Furthermore, the combination of OPTIONAL without has_ field is used
+ * for indicating proto3 style fields. Extensions exist in proto2 mode only,
+ * so they should be encoded according to proto2 rules. To avoid the conflict,
+ * extensions are marked as REQUIRED instead.
+ */
 #define PB_OPTEXT_STATIC(tag, st, m, fd, ltype, ptr) \
-    {tag, PB_ATYPE_STATIC | PB_HTYPE_OPTIONAL | ltype, \
+    {tag, PB_ATYPE_STATIC | PB_HTYPE_REQUIRED | ltype, \
     0, \
     0, \
     pb_membersize(st, m), 0, ptr}
@@ -458,25 +492,26 @@ struct pb_extension_s {
     PB_OPTIONAL_CALLBACK(tag, st, m, fd, ltype, ptr)
 
 /* The mapping from protobuf types to LTYPEs is done using these macros. */
-#define PB_LTYPE_MAP_BOOL       PB_LTYPE_VARINT
-#define PB_LTYPE_MAP_BYTES      PB_LTYPE_BYTES
-#define PB_LTYPE_MAP_DOUBLE     PB_LTYPE_FIXED64
-#define PB_LTYPE_MAP_ENUM       PB_LTYPE_VARINT
-#define PB_LTYPE_MAP_UENUM      PB_LTYPE_UVARINT
-#define PB_LTYPE_MAP_FIXED32    PB_LTYPE_FIXED32
-#define PB_LTYPE_MAP_FIXED64    PB_LTYPE_FIXED64
-#define PB_LTYPE_MAP_FLOAT      PB_LTYPE_FIXED32
-#define PB_LTYPE_MAP_INT32      PB_LTYPE_VARINT
-#define PB_LTYPE_MAP_INT64      PB_LTYPE_VARINT
-#define PB_LTYPE_MAP_MESSAGE    PB_LTYPE_SUBMESSAGE
-#define PB_LTYPE_MAP_SFIXED32   PB_LTYPE_FIXED32
-#define PB_LTYPE_MAP_SFIXED64   PB_LTYPE_FIXED64
-#define PB_LTYPE_MAP_SINT32     PB_LTYPE_SVARINT
-#define PB_LTYPE_MAP_SINT64     PB_LTYPE_SVARINT
-#define PB_LTYPE_MAP_STRING     PB_LTYPE_STRING
-#define PB_LTYPE_MAP_UINT32     PB_LTYPE_UVARINT
-#define PB_LTYPE_MAP_UINT64     PB_LTYPE_UVARINT
-#define PB_LTYPE_MAP_EXTENSION  PB_LTYPE_EXTENSION
+#define PB_LTYPE_MAP_BOOL               PB_LTYPE_BOOL
+#define PB_LTYPE_MAP_BYTES              PB_LTYPE_BYTES
+#define PB_LTYPE_MAP_DOUBLE             PB_LTYPE_FIXED64
+#define PB_LTYPE_MAP_ENUM               PB_LTYPE_VARINT
+#define PB_LTYPE_MAP_UENUM              PB_LTYPE_UVARINT
+#define PB_LTYPE_MAP_FIXED32            PB_LTYPE_FIXED32
+#define PB_LTYPE_MAP_FIXED64            PB_LTYPE_FIXED64
+#define PB_LTYPE_MAP_FLOAT              PB_LTYPE_FIXED32
+#define PB_LTYPE_MAP_INT32              PB_LTYPE_VARINT
+#define PB_LTYPE_MAP_INT64              PB_LTYPE_VARINT
+#define PB_LTYPE_MAP_MESSAGE            PB_LTYPE_SUBMESSAGE
+#define PB_LTYPE_MAP_SFIXED32           PB_LTYPE_FIXED32
+#define PB_LTYPE_MAP_SFIXED64           PB_LTYPE_FIXED64
+#define PB_LTYPE_MAP_SINT32             PB_LTYPE_SVARINT
+#define PB_LTYPE_MAP_SINT64             PB_LTYPE_SVARINT
+#define PB_LTYPE_MAP_STRING             PB_LTYPE_STRING
+#define PB_LTYPE_MAP_UINT32             PB_LTYPE_UVARINT
+#define PB_LTYPE_MAP_UINT64             PB_LTYPE_UVARINT
+#define PB_LTYPE_MAP_EXTENSION          PB_LTYPE_EXTENSION
+#define PB_LTYPE_MAP_FIXED_LENGTH_BYTES PB_LTYPE_FIXED_LENGTH_BYTES
 
 /* This is the actual macro used in field descriptions.
  * It takes these arguments:
@@ -485,7 +520,7 @@ struct pb_extension_s {
  *                 FLOAT, INT32, INT64, MESSAGE, SFIXED32, SFIXED64
  *                 SINT32, SINT64, STRING, UINT32, UINT64 or EXTENSION
  * - Field rules:  REQUIRED, OPTIONAL or REPEATED
- * - Allocation:   STATIC or CALLBACK
+ * - Allocation:   STATIC, CALLBACK or POINTER
  * - Placement: FIRST or OTHER, depending on if this is the first field in structure.
  * - Message name
  * - Field name
@@ -497,6 +532,14 @@ struct pb_extension_s {
         PB_ ## rules ## _ ## allocation(tag, message, field, \
         PB_DATAOFFSET_ ## placement(message, field, prevfield), \
         PB_LTYPE_MAP_ ## type, ptr)
+
+/* Field description for repeated static fixed count fields.*/
+#define PB_REPEATED_FIXED_COUNT(tag, type, placement, message, field, prevfield, ptr) \
+    {tag, PB_ATYPE_STATIC | PB_HTYPE_REPEATED | PB_LTYPE_MAP_ ## type, \
+    PB_DATAOFFSET_ ## placement(message, field, prevfield), \
+    0, \
+    pb_membersize(message, field[0]), \
+    pb_arraysize(message, field), ptr}
 
 /* Field description for oneof fields. This requires taking into account the
  * union name also, that's why a separate set of macros is needed.

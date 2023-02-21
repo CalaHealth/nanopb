@@ -11,8 +11,17 @@ bool pb_field_iter_begin(pb_field_iter_t *iter, const pb_field_t *fields, void *
     iter->pos = fields;
     iter->required_field_index = 0;
     iter->dest_struct = dest_struct;
-    iter->pData = (char*)dest_struct + iter->pos->data_offset;
-    iter->pSize = (char*)iter->pData + iter->pos->size_offset;
+
+    if (!dest_struct)
+    {
+        iter->pData = NULL;
+        iter->pSize = NULL;
+    }
+    else
+    {
+        iter->pData = (char*)dest_struct + iter->pos->data_offset;
+        iter->pSize = (char*)iter->pData + iter->pos->size_offset;
+    }
     
     return (iter->pos->tag != 0);
 }
@@ -42,11 +51,11 @@ bool pb_field_iter_next(pb_field_iter_t *iter)
         size_t prev_size = prev_field->data_size;
     
         if (PB_HTYPE(prev_field->type) == PB_HTYPE_ONEOF &&
-            PB_HTYPE(iter->pos->type) == PB_HTYPE_ONEOF)
+            PB_HTYPE(iter->pos->type) == PB_HTYPE_ONEOF &&
+            iter->pos->data_offset == PB_SIZE_MAX)
         {
             /* Don't advance pointers inside unions */
-            prev_size = 0;
-            iter->pData = (char*)iter->pData - prev_field->data_offset;
+            return true;
         }
         else if (PB_ATYPE(prev_field->type) == PB_ATYPE_STATIC &&
                  PB_HTYPE(prev_field->type) == PB_HTYPE_REPEATED)
